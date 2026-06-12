@@ -1,1 +1,14 @@
 @import "tailwindcss";
+
+/* Tailwind v4 কাস্টম থিমিং রুলস */
+@theme {
+  --font-sans: "Inter", system-ui, sans-serif;
+  
+  /* ভিডিওর এক্সাক্ট ফন্ট সাইজ এবং লাইট বর্ডার-শ্যাডো */
+  --font-size-course-deatails-heading-large: 36px;
+  --font-size-course-deatails-heading-small: 24px;
+  --font-size-default: 15px;
+  
+  --max-width-course-card: 420px;
+  --shadow-custom-card: 0px 4px 15px 2px rgba(0, 0, 0, 0.05);
+}

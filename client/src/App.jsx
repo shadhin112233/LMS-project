@@ -1,5 +1,6 @@
 import React from 'react'
 import { Route, Routes, useMatch } from 'react-router-dom'
+
 import Home from './pages/student/Home'
 import CoursesList from './pages/student/CoursesList'
 import CourseDetails from './pages/student/CourseDetails'
@@ -11,9 +12,13 @@ import Educator from './pages/educator/Educator'
 import Dashboard from './pages/educator/Dashboard'
 import AddCourse from './pages/educator/AddCourse'
 import MyCourses from './pages/educator/MyCourses'
-import StudentsEnrolled from './pages/educator/StudentsEnrolled' 
+import StudentsEnrolled from './pages/educator/StudentsEnrolled'
+
 import Navbar from './components/student/Navbar'
-import Footer from './components/student/Footer' // Footer ইম্পোর্ট করা হলো
+import Footer from './components/student/Footer'
+
+// ADD THIS LINE
+import 'quill/dist/quill.snow.css'
 
 const App = () => {
   const isEducatorRoute = useMatch('/educator/*')
@@ -21,7 +26,8 @@ const App = () => {
   return (
     <div className='text-default min-h-screen bg-white flex flex-col justify-between'>
       <div>
-        {!isEducatorRoute && <Navbar/>}
+        {!isEducatorRoute && <Navbar />}
+
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/course-list" element={<CoursesList />} />
@@ -32,15 +38,14 @@ const App = () => {
           <Route path="/loading/:path" element={<Loading />} />
 
           <Route path="/educator" element={<Educator />}>
-            <Route index element={<Dashboard />} /> 
+            <Route index element={<Dashboard />} />
             <Route path="add-course" element={<AddCourse />} />
             <Route path="my-courses" element={<MyCourses />} />
-            <Route path="student-enrolled" element={<StudentsEnrolled />} /> 
+            <Route path="student-enrolled" element={<StudentsEnrolled />} />
           </Route>
         </Routes>
       </div>
-      
-      {/* Educator এরিয়া বাদে বাকি সব পেজে ফুটার দেখানোর লজিক */}
+
       {!isEducatorRoute && <Footer />}
     </div>
   )

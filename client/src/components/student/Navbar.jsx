@@ -6,8 +6,9 @@ import { AppContext } from '../../context/AppContext'
 
 const Navbar = () => {
   const { isEducator } = useContext(AppContext)
-  const navigate = useNavigate() // এখানে react-router-dom এর useNavigate হুক ব্যবহার করা হয়েছে
+  const navigate = useNavigate() 
   const location = useLocation()
+  
   const isCourseListPage = location.pathname.includes('/course-list')
 
   const { openSignIn } = useClerk()
@@ -28,59 +29,108 @@ const Navbar = () => {
       </Link>
 
       {/* Desktop */}
-      <div className="hidden md:flex items-center gap-5 text-gray-600">
-        {user && (
+      <div className="hidden md:flex items-center gap-5 text-gray-600 font-medium">
+        
+        {isCourseListPage ? (
+          <>
+            {!user ? (
+              <>
+                <button onClick={() => navigate('/educator')} className="hover:text-blue-600 transition">
+                  Add Courses
+                </button>
+                <span className="text-gray-300">|</span>
+                <button onClick={() => openSignIn()} className="hover:text-blue-600 transition">
+                  Login
+                </button>
+                <button
+                  onClick={() => openSignIn()}
+                  className="bg-blue-600 text-white px-6 py-2 rounded-full hover:bg-blue-700 transition"
+                >
+                  Create Account
+                </button>
+              </>
+            ) : (
+              <>
+                <button onClick={() => navigate('/educator')} className="hover:text-blue-600 transition">
+                  {isEducator ? 'Educator Dashboard' : 'Become Educator'}
+                </button>
+                <Link to="/my-enrollments" className="hover:text-blue-600 transition">
+                  My Enrollments
+                </Link>
+                <UserButton />
+              </>
+            )}
+          </>
+        ) : (
           <>
             <button onClick={() => navigate('/educator')} className="hover:text-blue-600 transition">
               {isEducator ? 'Educator Dashboard' : 'Become Educator'}
             </button>
-
-            <Link
-              to="/my-enrollments"
-              className="hover:text-blue-600 transition"
-            >
-              My Enrollments
-            </Link>
+            {user ? (
+              <>
+                <Link to="/my-enrollments" className="hover:text-blue-600 transition">
+                  My Enrollments
+                </Link>
+                <UserButton />
+              </>
+            ) : (
+              <button
+                onClick={() => openSignIn()}
+                className="bg-blue-600 text-white px-6 py-2 rounded-full hover:bg-blue-700 transition"
+              >
+                Create Account
+              </button>
+            )}
           </>
-        )}
-
-        {user ? (
-          <UserButton />
-        ) : (
-          <button
-            onClick={() => openSignIn()}
-            className="bg-blue-600 text-white px-6 py-2 rounded-full hover:bg-blue-700 transition"
-          >
-            Create Account
-          </button>
         )}
       </div>
 
       {/* Mobile */}
       <div className="flex md:hidden items-center gap-3">
-        {user ? (
+        {isCourseListPage ? (
+          <>
+            {!user ? (
+              <>
+                <button onClick={() => navigate('/educator')} className="text-xs font-medium text-gray-600">
+                  Add Courses
+                </button>
+                <button onClick={() => openSignIn()} className="text-xs font-medium text-gray-600">
+                  Login
+                </button>
+                <button onClick={() => openSignIn()}>
+                  <img src={assets.user_icon} alt="user" className="w-6 h-6" />
+                </button>
+              </>
+            ) : (
+              <>
+                <button onClick={() => navigate('/educator')} className="text-xs font-medium text-gray-600">
+                  {isEducator ? 'Educator Dashboard' : 'Become Educator'}
+                </button>
+                <Link to="/my-enrollments" className="text-xs font-medium text-gray-600">
+                  My Courses
+                </Link>
+                <UserButton />
+              </>
+            )}
+          </>
+        ) : (
           <>
             <button onClick={() => navigate('/educator')} className="text-xs font-medium text-gray-600">
               {isEducator ? 'Educator Dashboard' : 'Become Educator'}
             </button>
-
-            <Link
-              to="/my-enrollments"
-              className="text-xs font-medium text-gray-600"
-            >
-              My Courses
-            </Link>
-
-            <UserButton />
+            {user ? (
+              <>
+                <Link to="/my-enrollments" className="text-xs font-medium text-gray-600">
+                  My Courses
+                </Link>
+                <UserButton />
+              </>
+            ) : (
+              <button onClick={() => openSignIn()}>
+                <img src={assets.user_icon} alt="user" className="w-6 h-6" />
+              </button>
+            )}
           </>
-        ) : (
-          <button onClick={() => openSignIn()}>
-            <img
-              src={assets.user_icon}
-              alt="user"
-              className="w-6 h-6"
-            />
-          </button>
         )}
       </div>
     </nav>
