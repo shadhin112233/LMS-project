@@ -3,6 +3,7 @@ import { assets } from '../../assets/assets'
 import Quill from 'quill'
 import { toast } from 'react-toastify'
 import axios from 'axios'
+import { useAuth } from '@clerk/clerk-react'
 
 const AddCourse = () => {
 
@@ -23,6 +24,7 @@ const AddCourse = () => {
     lectureUrl: '',
     isPreviewFree: false
   })
+  const { getToken } = useAuth()
 
   // Handle Chapter Operations (Add, Toggle, Remove)
   const handleChapter = (action, chapterId) => {
@@ -86,44 +88,62 @@ const AddCourse = () => {
 
   // Handle Form Submission with API & Cloudinary Logic
   const handleSubmit = async (e) => {
-    try {
-      e.preventDefault()
-      
-      if (!image) {
-        return toast.error('Please select a course thumbnail')
-      }
+  try {
+    e.preventDefault()
 
-      const courseDescription = quillRef.current ? quillRef.current.root.innerHTML : ''
+    const token = await getToken()
 
-      const formData = new FormData()
-      formData.append('courseTitle', courseTitle)
-      formData.append('courseDescription', courseDescription)
-      formData.append('coursePrice', coursePrice)
-      formData.append('discount', discount)
-      formData.append('courseThumbnail', image)
-      formData.append('chapters', JSON.stringify(chapters))
-
-      // API backend integration
-      const { data } = await axios.post('/api/educator/add-course', formData)
-
-      if (data.success) {
-        toast.success(data.message)
-        setCourseTitle('')
-        setCoursePrice(0)
-        setDiscount(0)
-        setImage(false)
-        setChapters([])
-        if (quillRef.current) {
-          quillRef.current.root.innerHTML = ''
-        }
-      } else {
-        toast.error(data.message)
-      }
-
-    } catch (error) {
-      toast.error(error.message)
+    if (!image) {
+      return toast.error('Please select a course thumbnail')
     }
+
+    const courseDescription = quillRef.current
+      ? quillRef.current.root.innerHTML
+      : ''
+
+    const courseData = {
+      courseTitle,
+      courseDescription,
+      coursePrice,
+      discount,
+      courseContent: chapters
+    }
+
+    const formData = new FormData()
+
+    formData.append('courseData', JSON.stringify(courseData))
+    formData.append('image', image)
+
+    const { data } = await axios.post(
+      'http://localhost:5000/api/educator/add-course',
+      formData,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      }
+    )
+
+    if (data.success) {
+      toast.success(data.message)
+
+      setCourseTitle('')
+      setCoursePrice(0)
+      setDiscount(0)
+      setImage(false)
+      setChapters([])
+
+      if (quillRef.current) {
+        quillRef.current.root.innerHTML = ''
+      }
+    } else {
+      toast.error(data.message)
+    }
+  } catch (error) {
+    console.log(error)
+    toast.error(error.response?.data?.message || error.message)
   }
+}
 
   // Initialize Quill Editor
   useEffect(() => {

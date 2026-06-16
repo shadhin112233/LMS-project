@@ -2,25 +2,33 @@ import { createContext, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { dummyCourses } from '../assets/assets'; 
 import humanizeDuration from 'humanize-duration';
+import { useAuth, useUser } from '@clerk/clerk-react';
 
 export const AppContext = createContext();
 
 export const AppContextProvider = (props) => {
-        const navigate = useNavigate();
+    const navigate = useNavigate();
 
     const currency = import.meta.env.VITE_CURRENCY || '$';
+    
+    const { getToken } = useAuth();
+    const { user } = useUser();
+
     const [allCourses, setAllCourses] = useState([]);
     const [isEducator, setIsEducator] = useState(true);
-    // ১. এনরোল করা কোর্সের জন্য স্টেট ডিক্লেয়ারেশন
     const [enrolledCourses, setEnrolledCourses] = useState([]);
 
     const fetchAllCourses = async () => {
         setAllCourses(dummyCourses);
     }
 
-    // ২. ইউজার এনরোল করা কোর্স ফেচ করার ফাংশন
     const fetchUserEnrolledCourses = async () => {
         setEnrolledCourses(dummyCourses);
+    }
+
+    // Clerk ড্যাশবোর্ডের 'postman' টেমপ্লেট থেকে দীর্ঘস্থায়ী টোকেন জেনারেট করার জন্য পরিবর্তন
+    const logToken = async () => {
+        console.log(await getToken({ template: 'postman' }));
     }
 
     const calculateRating = (course) => {
@@ -68,17 +76,19 @@ export const AppContextProvider = (props) => {
         return totalLectures;
     }
 
-    // ৩. useEffect-এর ভেতর দুটি ফাংশনই কল করা হয়েছে
     useEffect(() => {
         fetchAllCourses();
         fetchUserEnrolledCourses();
     }, []);
 
-    // ৪. value অবজেক্টে স্টেট ও ফাংশন দুটি পাস করা হয়েছে
-    const value = {
+    useEffect(() => {
+        if (user) {
+            logToken();
+        }
+    }, [user]);
 
-        navigate ,
-        
+    const value = {
+        navigate,
         currency,
         allCourses,
         calculateRating,

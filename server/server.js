@@ -1,25 +1,45 @@
-import express from 'express'
-import cors from 'cors'
-import 'dotenv/config'
-import connectDB from './config/mongodb.js' // Aponar proproject er database path onusare check kore neben
-import { clerkWebhooks } from './controllers/webhooks.js'
+import 'dotenv/config'; 
+import express from 'express';
+import cors from 'cors';
+import { clerkMiddleware } from '@clerk/express'; 
+import connectDB from './config/mongodb.js';
+import connectCloudinary from './config/cloudinary.js'; 
+import educatorRouter from './routes/educatorRoutes.js';
+import courseRouter from './routes/courseRoute.js';
+import userRouter from './routes/userRoutes.js'; 
 
-// Initialize Express
-const app = express()
+const app = express();
 
-// Connect to database
-await connectDB()
+// ডাটাবেজ কানেকশন
+connectDB();
+connectCloudinary(); 
 
-// Middlewares
-app.use(cors())
+// গ্লোবাল মিডলওয়্যারস
+app.use(cors());
+app.use(express.json());
 
-// Routes
-app.get('/', (req, res)=> res.send("API Working"))
-app.post('/clerk', express.json(), clerkWebhooks)
+// 🌟 Clerk মিডলওয়্যার ডিফাইন করার সময় keys গুলো এক্সপ্লিসিটলি পাস করে দেওয়া হলো
+app.use(clerkMiddleware({
+    publishableKey: process.env.CLERK_PUBLISHABLE_KEY,
+    secretKey: process.env.CLERK_SECRET_KEY
+}));
 
-// Port
-const PORT = process.env.PORT || 5000
+// সব রাউটস
+app.use('/api/educator', educatorRouter);
+app.use('/api/course', courseRouter);
+app.use('/api/user', userRouter); 
 
-app.listen(PORT, ()=>{
-    console.log(`Server is running on port ${PORT}`)
-})
+// এরর হ্যান্ডলিং মিডলওয়্যার
+app.use((err, req, res, next) => {
+    if (err) {
+        console.error("Clerk Error Handler:", err.message);
+        return res.status(err.status || 500).json({
+            success: false,
+            message: err.message || "Internal Server Error"
+        });
+    }
+    next();
+});
+
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
