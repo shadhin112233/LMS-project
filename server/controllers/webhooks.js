@@ -1,11 +1,10 @@
 import { Webhook } from "svix";
 import Stripe from "stripe";
 import User from "../models/User.js";
-// টিউটোরিয়াল অনুযায়ী নিচের মডেল দুটো ইমপোর্ট করতে হবে
 import Purchase from "../models/Purchase.js"; 
 import Course from "../models/Course.js"; 
 
-// ১. Stripe Instance তৈরি (image_ecff01.jpg অনুযায়ী)
+// ১. Stripe Instance তৈরি
 const stripeInstance = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 // =============== CLERK WEBHOOK CONTROLLER ===============
@@ -61,8 +60,7 @@ export const clerkWebhooks = async (req, res) => {
   }
 };
 
-// =============== STRIPE WEBHOOK CONTROLLER ===============
-// (image_ecff01.jpg থেকে image_ecef63.jpg এর স্ক্রিনশট অনুযায়ী)
+// =============== STRIPE WEBHOOK CONTROLLER (FIXED) ===============
 export const stripeWebhooks = async (request, response) => {
   const sig = request.headers['stripe-signature'];
   let event;
@@ -75,6 +73,7 @@ export const stripeWebhooks = async (request, response) => {
       process.env.STRIPE_WEBHOOK_SECRET
     );
   } catch (err) {
+    console.error(`❌ Webhook Error: ${err.message}`);
     return response.status(400).send(`Webhook Error: ${err.message}`);
   }
 
@@ -84,30 +83,58 @@ export const stripeWebhooks = async (request, response) => {
       const paymentIntent = event.data.object;
       const paymentIntentId = paymentIntent.id;
 
-      // Checkout Session থেকে মেটাডাটা বের করা (image_ecf7bd.jpg)
-      const session = await stripeInstance.checkout.sessions.list({
-        payment_intent: paymentIntentId,
-      });
+      try {
+        // Checkout Session থেকে মেটাডাটা বের করা
+        const session = await stripeInstance.checkout.sessions.list({
+          payment_intent: paymentIntentId,
+        });
 
-      const { purchaseId } = session.data[0].metadata;
+        if (!session.data || session.data.length === 0) {
+          console.error("❌ No checkout session found for this payment intent");
+          break;
+        }
 
-      // ডাটাবেজে পারচেজ ও ইউজার আপডেট করা (image_ecf722.jpg, image_ecf39b.jpg)
-      const purchaseData = await Purchase.findById(purchaseId);
-      const userData = await User.findById(purchaseData.userId);
-      const courseData = await Course.findById(purchaseData.courseId.toString());
+        const { purchaseId } = session.data[0].metadata;
 
-      // কোর্সে স্টুডেন্ট পুশ করা এবং সেভ করা
-      courseData.enrolledStudents.push(userData._id);
-      await courseData.save();
+        // ডাটাবেজ থেকে পারচেজ ডাটা খোঁজা
+        const purchaseData = await Purchase.findById(purchaseId);
+        if (!purchaseData) {
+          console.error(`❌ Purchase ID ${purchaseId} not found in DB`);
+          break;
+        }
 
-      // ইউজারে কোর্স আইডি পুsh করা এবং সেভ করা
-      userData.enrolledCourses.push(courseData._id);
-      await userData.save();
+        // ইউজার ও কোর্স ডাটা খোঁজা
+        const userData = await User.findById(purchaseData.userId);
+        const courseData = await Course.findById(purchaseData.courseId.toString());
 
-      // পারচেজ স্ট্যাটাস completed করা
-      purchaseData.status = 'completed';
-      await purchaseData.save();
+        if (!userData || !courseData) {
+          console.error("❌ User or Course not found in DB");
+          break;
+        }
 
+        // ১. কোর্সে স্টুডেন্ট পুশ করা (অ্যারে চেক ও ডুপ্লিকেট রোধ)
+        if (!courseData.enrolledStudents) courseData.enrolledStudents = [];
+        if (!courseData.enrolledStudents.includes(userData._id)) {
+          courseData.enrolledStudents.push(userData._id);
+          await courseData.save();
+        }
+
+        // ২. ইউজারে কোর্স আইডি পুশ করা (অ্যারে চেক ও ডুপ্লিকেট রোধ)
+        if (!userData.enrolledCourses) userData.enrolledCourses = [];
+        if (!userData.enrolledCourses.includes(courseData._id)) {
+          userData.enrolledCourses.push(courseData._id);
+          await userData.save();
+        }
+
+        // ৩. পারচেজ স্ট্যাটাস completed করা
+        purchaseData.status = 'completed';
+        await purchaseData.save();
+
+        console.log(`✅ Purchase ${purchaseId} successfully updated to COMPLETED!`);
+
+      } catch (dbError) {
+        console.error("❌ Error updating database during successful payment:", dbError.message);
+      }
       break;
     }
 
@@ -115,17 +142,25 @@ export const stripeWebhooks = async (request, response) => {
       const paymentIntent = event.data.object;
       const paymentIntentId = paymentIntent.id;
 
-      const session = await stripeInstance.checkout.sessions.list({
-        payment_intent: paymentIntentId,
-      });
+      try {
+        const session = await stripeInstance.checkout.sessions.list({
+          payment_intent: paymentIntentId,
+        });
 
-      const { purchaseId } = session.data[0].metadata;
+        if (session.data && session.data.length > 0) {
+          const { purchaseId } = session.data[0].metadata;
 
-      // পেমেন্ট ফেইল হলে স্ট্যাটাস failed করা (image_ecef63.jpg)
-      const purchaseData = await Purchase.findById(purchaseId);
-      purchaseData.status = 'failed';
-      await purchaseData.save();
-
+          // পেমেন্ট ফেইল হলে স্ট্যাটাস failed করা
+          const purchaseData = await Purchase.findById(purchaseId);
+          if (purchaseData) {
+            purchaseData.status = 'failed';
+            await purchaseData.save();
+            console.log(`❌ Purchase ${purchaseId} marked as FAILED.`);
+          }
+        }
+      } catch (dbError) {
+        console.error("❌ Error updating database during failed payment:", dbError.message);
+      }
       break;
     }
 
@@ -133,6 +168,6 @@ export const stripeWebhooks = async (request, response) => {
       console.log(`Unhandled event type ${event.type}`);
   }
 
-  // Stripe-কে রেসপন্স পাঠানো (image_ecef63.jpg)
+  // Stripe-কে রেসপন্স পাঠানো
   response.json({ received: true });
 };
