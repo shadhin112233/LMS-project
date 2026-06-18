@@ -1,11 +1,14 @@
 import Course from "../models/Course.js";
 import User from "../models/User.js";
 
-// Get All Courses
+// ==========================================
+// 1. Get All Courses (সব পাবলিশড কোর্স আনা)
+// ==========================================
 export const getAllCourse = async (req, res) => {
     try {
+        // courseContent এবং enrolledStudents বাদ দিয়ে শুধু প্রয়োজনীয় ডেটা আনা হচ্ছে
         const courses = await Course.find({ isPublished: true })
-            .select(['-courseContent', '-enrolledStudents'])
+            .select('-courseContent -enrolledStudents')
             .populate({ path: 'educator' });
 
         return res.status(200).json({ 
@@ -20,7 +23,9 @@ export const getAllCourse = async (req, res) => {
     }
 };
 
-// Get Course by Id
+// ==========================================
+// 2. Get Course by Id (আইডি দিয়ে নির্দিষ্ট কোর্স আনা)
+// ==========================================
 export const getCourseId = async (req, res) => {
     const { id } = req.params;
 
@@ -34,18 +39,25 @@ export const getCourseId = async (req, res) => {
             });
         }
 
-        // Remove lectureUrl if isPreviewFree is false
-        courseData.courseContent.forEach(chapter => {
-            chapter.chapterContent.forEach(lecture => {
-                if (!lecture.isPreviewFree) {
-                    lecture.lectureUrl = "";
+        // Mongoose Document-কে সাধারণ JavaScript Object-এ রূপান্তর (যাতে ক্র্যাশ না করে)
+        const courseObject = courseData.toObject();
+
+        // প্রিভিউ ফ্রি না হলে লেকচারের URL হাইড/ফাঁকা করার লজিক
+        if (courseObject.courseContent && Array.isArray(courseObject.courseContent)) {
+            courseObject.courseContent.forEach(chapter => {
+                if (chapter.chapterContent && Array.isArray(chapter.chapterContent)) {
+                    chapter.chapterContent.forEach(lecture => {
+                        if (!lecture.isPreviewFree) {
+                            lecture.lectureUrl = ""; 
+                        }
+                    });
                 }
             });
-        });
+        }
 
         return res.status(200).json({
             success: true,
-            courseData
+            courseData: courseObject
         });
     } catch (error) {
         return res.status(500).json({
@@ -53,4 +65,4 @@ export const getCourseId = async (req, res) => {
             message: error.message
         });
     }
-}; 
+};

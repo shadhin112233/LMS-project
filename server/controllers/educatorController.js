@@ -1,10 +1,7 @@
-// import Course from '../models/Course.js';
-import Purchase from '../models/Purchase.js';
-import User from '../models/User.js';
-
-
 import { createClerkClient } from '@clerk/express';
 import Course from '../models/Course.js';
+import Purchase from '../models/Purchase.js'; // 👈 ইমপোর্টগুলো সুন্দরভাবে গুছিয়ে দেওয়া হলো
+import User from '../models/User.js';         // 👈 ইমপোর্টগুলো সুন্দরভাবে গুছিয়ে দেওয়া হলো
 import { v2 as cloudinary } from 'cloudinary';
 
 const clerkClient = createClerkClient({
@@ -14,8 +11,7 @@ const clerkClient = createClerkClient({
 // Add Course
 export const addCourse = async (req, res) => {
     try {
-
-        const userId = req.userId;
+        const userId = req.userId || req.auth?.userId;
 
         if (!userId) {
             return res.status(401).json({
@@ -38,12 +34,36 @@ export const addCourse = async (req, res) => {
 
         const parsedCourseData = JSON.parse(courseData || "{}");
 
+        // 🛠️ মঙ্গুস স্কিমা ভ্যালিডেশন এরর ফিক্সিং লজিক (Course validation failed সমাধান)
+        if (parsedCourseData.courseContent && Array.isArray(parsedCourseData.courseContent)) {
+            parsedCourseData.courseContent = parsedCourseData.courseContent.map((chapter, chapterIdx) => {
+                // চ্যাপ্টারের অর্ডার না থাকলে ইনডেক্স অনুযায়ী সেট হবে
+                if (!chapter.chapterOrder) {
+                    chapter.chapterOrder = chapterIdx + 1;
+                }
+
+                if (chapter.chapterContent && Array.isArray(chapter.chapterContent)) {
+                    chapter.chapterContent = chapter.chapterContent.map((lecture, lectureIdx) => {
+                        // লেকচারের অর্ডার না থাকলে সেট হবে
+                        if (!lecture.lectureOrder) {
+                            lecture.lectureOrder = lectureIdx + 1;
+                        }
+                        // লেকচার আইডি খালি থাকলে বা ইউনিক আইডি না থাকলে একটি ইউনিক আইডি জেনারেট হবে
+                        if (!lecture.lectureId) {
+                            lecture.lectureId = lecture.id || `lec_${chapterIdx + 1}_${lectureIdx + 1}_${Date.now()}`;
+                        }
+                        return lecture;
+                    });
+                }
+                return chapter;
+            });
+        }
+
         parsedCourseData.educator = userId;
 
-       const imageUpload = await cloudinary.uploader.upload(imageFile.path, {
-    resource_type: "image",
-    // আপনি চাইলে এখানে নির্দিষ্ট ফোল্ডারও বলে দিতে পারেন, যেমন: folder: "lms_courses"
-});
+        const imageUpload = await cloudinary.uploader.upload(imageFile.path, {
+            resource_type: "image",
+        });
 
         parsedCourseData.courseThumbnail = imageUpload.secure_url;
 
@@ -68,7 +88,6 @@ export const addCourse = async (req, res) => {
 // Update Role To Educator
 export const updateRoleToEducator = async (req, res) => {
     try {
-
         const userId = req.userId || req.auth?.userId;
 
         if (!userId) {
@@ -102,7 +121,6 @@ export const updateRoleToEducator = async (req, res) => {
 // Get Educator Courses
 export const getEducatorCourses = async (req, res) => {
     try {
-        // আমাদের মিডলওয়্যার থেকে সেট করা req.userId নেওয়া হচ্ছে
         const educator = req.userId || req.auth?.userId;
 
         if (!educator) {
@@ -112,10 +130,8 @@ export const getEducatorCourses = async (req, res) => {
             });
         }
 
-        // ডাটাবেজ থেকে এই এডুকেটরের সব কোর্স খুঁজে বের করা
         const courses = await Course.find({ educator });
 
-        // সাকসেস রেসপন্স রিটার্ন
         return res.status(200).json({
             success: true,
             courses
@@ -143,13 +159,11 @@ export const educatorDashboardData = async (req, res) => {
             });
         }
 
-        // Fetch all courses for this educator
         const courses = await Course.find({ educator });
         const totalCourses = courses.length;
 
         const courseIds = courses.map(course => course._id);
 
-        // Calculate total earnings from completed purchases
         const purchases = await Purchase.find({
             courseId: { $in: courseIds },
             status: 'completed'
@@ -157,7 +171,6 @@ export const educatorDashboardData = async (req, res) => {
 
         const totalEarnings = purchases.reduce((sum, purchase) => sum + purchase.amount, 0);
 
-        // Collect unique enrolled student IDs with their course titles
         const enrolledStudentsData = [];
         for (const course of courses) {
             const students = await User.find({
@@ -205,7 +218,6 @@ export const getEnrolledStudentsData = async (req, res) => {
         const courses = await Course.find({ educator });
         const courseIds = courses.map(course => course._id);
 
-        // Fetch purchases and populate student and course details
         const purchases = await Purchase.find({
             courseId: { $in: courseIds },
             status: 'completed'

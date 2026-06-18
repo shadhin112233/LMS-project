@@ -21,20 +21,24 @@ app.use(cors());
 // 🚀 ১. STRIPE WEBHOOK (সবার উপরে অরিজিনাল র বডি রিড করার জন্য)
 app.post('/api/webhook/stripe', express.raw({ type: 'application/json' }), stripeWebhooks);
 
-// ২. বাকি সব রুটের জন্য বডি পার্সার
+// 🚀 ২. CLERK WEBHOOK (express.json() এর উপরে রাখা নিরাপদ, svix ভেরিফিকেশনের জন্য)
+app.post('/api/webhook/clerk', express.json({
+    verify: (req, res, buf) => {
+        req.rawBody = buf.toString(); // ভেরিফিকেশনের জন্য র বডি ব্যাকআপ রাখা
+    }
+}), clerkWebhooks);
+
+// ৩. বাকি সব রুটের জন্য সাধারণ বডি পার্সার
 app.use(express.json());
 
-// ৩. Clerk মিডলওয়্যার
+// ৪. Clerk মিডলওয়্যার
 app.use(clerkMiddleware({
     publishableKey: process.env.CLERK_PUBLISHABLE_KEY,
     secretKey: process.env.CLERK_SECRET_KEY
 }));
 
-// ৪. সার্ভার হেলথ চেক
+// ৫. সার্ভার হেলথ চেক
 app.get('/', (req, res) => res.send("API Working"));
-
-// 🚀 ৫. CLERK WEBHOOK 
-app.post('/api/webhook/clerk', clerkWebhooks);
 
 // ৬. বাকি সব নরমাল এপিআই রাউটস
 app.use('/api/educator', educatorRouter);
@@ -44,7 +48,7 @@ app.use('/api/user', userRouter);
 // এরর হ্যান্ডলিং মিডলওয়্যার
 app.use((err, req, res, next) => {
     if (err) {
-        console.error("Clerk Error Handler:", err.message);
+        console.error("Server Error Log:", err.message);
         return res.status(err.status || 500).json({
             success: false,
             message: err.message || "Internal Server Error"
