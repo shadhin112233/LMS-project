@@ -27,14 +27,7 @@ const Navbar = () => {
         <p>Hi! {user ? user.fullName : 'Developers'}</p>
 
         {/* TEST TOKEN BUTTON (temporary) */}
-        {user && (
-          <button
-            onClick={testToken}
-            className='text-xs text-blue-500 border px-2 py-1 rounded'
-          >
-            Get Token
-          </button>
-        )}
+        
 
         {/* User Button */}
         {user ? (
