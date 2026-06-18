@@ -1,20 +1,50 @@
-import React, { useEffect, useState } from 'react'
-import { dummyStudentEnrolled } from '../../assets/assets'
+import React, { useContext, useEffect, useState } from 'react'
+import { AppContext } from '../../context/AppContext'
+import Loading from '../../components/student/Loading' // Loading স্পিনার ইমপোর্ট করা হলো
+import axios from 'axios'
+import { toast } from 'react-toastify'
 
 const StudentsEnrolled = () => {
 
+  // 🛠️ স্ক্রিনশট অনুযায়ী AppContext থেকে ভেরিয়েবল এবং ফাংশন নেওয়া হলো
+  const { backendUrl, getToken, isEducator } = useContext(AppContext)
   const [enrolledStudents, setEnrolledStudents] = useState(null)
 
+  // 🛠️ API কল করে ইনরোল হওয়া স্টুডেন্টদের ডাটা নিয়ে আসার ফাংশন
   const fetchEnrolledStudents = async () => {
-    setEnrolledStudents(dummyStudentEnrolled)
+    try {
+      const token = await getToken()
+      
+      const { data } = await axios.get(
+        backendUrl + '/api/educator/enrolled-students', 
+        {
+          headers: { 
+            Authorization: `Bearer ${token}` 
+          }
+        }
+      )
+
+      if (data.success) {
+        setEnrolledStudents(data.enrolledStudents)
+      } else {
+        toast.error(data.message)
+      }
+    } catch (error) {
+      console.log(error)
+      toast.error(error.response?.data?.message || error.message)
+    }
   }
 
+  // 🛠️ ইউজার এডুকেটর হলে তবেই কেবল ডাটা ফেচ হবে
   useEffect(() => {
-    fetchEnrolledStudents()
-  }, [])
+    if (isEducator) {
+      fetchEnrolledStudents()
+    }
+  }, [isEducator])
 
+  // 🛠️ ডাটা লোড হওয়ার সময় সুন্দর একটি Loading স্পিনার দেখাবে
   return enrolledStudents ? (
-    <div className='min-h-screen flex flex-col items-start justify-between md:p-8 md:pb-0 p-4 pt-8 pb-0'>
+    <div className='min-h-screen flex flex-col items-start justify-between md:p-8 md:pb-0 p-4 pt-8 pb-0 w-full overflow-y-scroll'>
       <div className='w-full'>
         <h2 className="pb-4 text-lg font-medium">Students Enrolled</h2>
         <div className='flex flex-col items-center max-w-4xl w-full overflow-hidden rounded-md bg-white border border-gray-500/20'>
@@ -35,7 +65,7 @@ const StudentsEnrolled = () => {
                     <img 
                       src={item.student.imageUrl} 
                       alt="" 
-                      className='w-9 h-9 rounded-full' 
+                      className='w-9 h-9 rounded-full object-cover' 
                     />
                     <span className='truncate'>{item.student.name}</span>
                   </td>
@@ -50,7 +80,7 @@ const StudentsEnrolled = () => {
         </div>
       </div>
     </div>
-  ) : null
+  ) : <Loading /> // 👈 null এর পরিবর্তে এখানে Loading কম্পোনেন্ট যুক্ত করা হয়েছে
 }
 
-export default StudentsEnrolled
+export default StudentsEnrolled;

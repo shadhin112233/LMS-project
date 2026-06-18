@@ -3,137 +3,109 @@ import { assets } from '../../assets/assets'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useClerk, UserButton, useUser } from '@clerk/clerk-react'
 import { AppContext } from '../../context/AppContext'
+import axios from 'axios'
+import { toast } from 'react-toastify'
 
 const Navbar = () => {
-  const { isEducator } = useContext(AppContext)
-  const navigate = useNavigate() 
-  const location = useLocation()
+
+  // Screenshot 1 onujayi context states call kora hoyeche
+  const { navigate, isEducator, backendUrl, setIsEducator, getToken } = useContext(AppContext)
   
+  const location = useLocation()
   const isCourseListPage = location.pathname.includes('/course-list')
 
   const { openSignIn } = useClerk()
   const { user } = useUser()
 
+  // Screenshot 1 & 2 onujayi becomeEducator function runtime validation
+  const becomeEducator = async () => {
+    try {
+      if (isEducator) {
+        navigate('/educator')
+        return;
+      }
+      
+      const token = await getToken();
+      const { data } = await axios.get(backendUrl + '/api/educator/update-role', {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+
+      if (data.success) {
+        setIsEducator(true)
+        toast.success(data.message)
+      } else {
+        toast.error(data.message)
+      }
+
+    } catch (error) {
+      toast.error(error.response?.data?.message || error.message)
+    }
+  }
+
   return (
-    <nav
-      className={`flex items-center justify-between px-4 sm:px-8 md:px-14 lg:px-24 xl:px-36 py-4 border-b border-gray-200 ${
+    <div
+      className={`flex items-center justify-between px-4 sm:px-10 md:px-14 lg:px-36 border-b border-gray-500 py-4 ${
         isCourseListPage ? 'bg-white' : 'bg-cyan-100/70'
       }`}
     >
-      <Link to="/">
-        <img
-          src={assets.logo}
-          alt="logo"
-          className="w-24 sm:w-28 md:w-32 cursor-pointer"
-        />
-      </Link>
+      <img 
+        onClick={() => navigate('/')} 
+        src={assets.logo} 
+        alt="Logo" 
+        className="w-28 lg:w-32 cursor-pointer" 
+      />
 
-      {/* Desktop */}
-      <div className="hidden md:flex items-center gap-5 text-gray-600 font-medium">
+      {/* Desktop Version (Screenshot 3) */}
+      <div className="hidden md:flex items-center gap-5 text-gray-500">
+        <div className="flex items-center gap-5">
+          {user && (
+            <>
+              {/* navigate kora bad diye dynamic function call kora hoyeche */}
+              <button onClick={becomeEducator}>
+                {isEducator ? 'Educator Dashboard' : 'Become Educator'}
+              </button>
+              <span className="text-gray-300">|</span>
+              <Link to="/my-enrollments">My Enrollments</Link>
+            </>
+          )}
+        </div>
         
-        {isCourseListPage ? (
-          <>
-            {!user ? (
-              <>
-                <button onClick={() => navigate('/educator')} className="hover:text-blue-600 transition">
-                  Add Courses
-                </button>
-                <span className="text-gray-300">|</span>
-                <button onClick={() => openSignIn()} className="hover:text-blue-600 transition">
-                  Login
-                </button>
-                <button
-                  onClick={() => openSignIn()}
-                  className="bg-blue-600 text-white px-6 py-2 rounded-full hover:bg-blue-700 transition"
-                >
-                  Create Account
-                </button>
-              </>
-            ) : (
-              <>
-                <button onClick={() => navigate('/educator')} className="hover:text-blue-600 transition">
-                  {isEducator ? 'Educator Dashboard' : 'Become Educator'}
-                </button>
-                <Link to="/my-enrollments" className="hover:text-blue-600 transition">
-                  My Enrollments
-                </Link>
-                <UserButton />
-              </>
-            )}
-          </>
+        {user ? (
+          <UserButton />
         ) : (
-          <>
-            <button onClick={() => navigate('/educator')} className="hover:text-blue-600 transition">
-              {isEducator ? 'Educator Dashboard' : 'Become Educator'}
-            </button>
-            {user ? (
-              <>
-                <Link to="/my-enrollments" className="hover:text-blue-600 transition">
-                  My Enrollments
-                </Link>
-                <UserButton />
-              </>
-            ) : (
-              <button
-                onClick={() => openSignIn()}
-                className="bg-blue-600 text-white px-6 py-2 rounded-full hover:bg-blue-700 transition"
-              >
-                Create Account
-              </button>
-            )}
-          </>
+          <button 
+            onClick={() => openSignIn()} 
+            className="bg-blue-600 text-white px-5 py-2 rounded-full"
+          >
+            Create Account
+          </button>
         )}
       </div>
 
-      {/* Mobile */}
-      <div className="flex md:hidden items-center gap-3">
-        {isCourseListPage ? (
-          <>
-            {!user ? (
-              <>
-                <button onClick={() => navigate('/educator')} className="text-xs font-medium text-gray-600">
-                  Add Courses
-                </button>
-                <button onClick={() => openSignIn()} className="text-xs font-medium text-gray-600">
-                  Login
-                </button>
-                <button onClick={() => openSignIn()}>
-                  <img src={assets.user_icon} alt="user" className="w-6 h-6" />
-                </button>
-              </>
-            ) : (
-              <>
-                <button onClick={() => navigate('/educator')} className="text-xs font-medium text-gray-600">
-                  {isEducator ? 'Educator Dashboard' : 'Become Educator'}
-                </button>
-                <Link to="/my-enrollments" className="text-xs font-medium text-gray-600">
-                  My Courses
-                </Link>
-                <UserButton />
-              </>
-            )}
-          </>
-        ) : (
-          <>
-            <button onClick={() => navigate('/educator')} className="text-xs font-medium text-gray-600">
-              {isEducator ? 'Educator Dashboard' : 'Become Educator'}
-            </button>
-            {user ? (
-              <>
-                <Link to="/my-enrollments" className="text-xs font-medium text-gray-600">
-                  My Courses
-                </Link>
-                <UserButton />
-              </>
-            ) : (
-              <button onClick={() => openSignIn()}>
-                <img src={assets.user_icon} alt="user" className="w-6 h-6" />
+      {/* Mobile Version (Screenshot 4) */}
+      <div className="md:hidden flex items-center gap-2 sm:gap-5 text-gray-500">
+        <div className="flex items-center gap-1 sm:gap-2 max-sm:text-xs">
+          {user && (
+            <>
+              <button onClick={becomeEducator}>
+                {isEducator ? 'Educator Dashboard' : 'Become Educator'}
               </button>
-            )}
-          </>
+              <span className="text-gray-300">|</span>
+              <Link to="/my-enrollments">My Enrollments</Link>
+            </>
+          )}
+        </div>
+
+        {user ? (
+          <UserButton />
+        ) : (
+          <button onClick={() => openSignIn()}>
+            <img src={assets.user_icon} alt="user icon" className="w-6 h-6" />
+          </button>
         )}
       </div>
-    </nav>
+
+    </div>
   )
 }
 

@@ -34,7 +34,8 @@ const AddCourse = () => {
         const newChapter = {
           chapterId: Date.now().toString(),
           chapterTitle: title,
-          chapterContent: [],
+          chapterContent: [],  // Compatibility with current schema
+          chapterLectures: [], // Compatibility with GreatStack Player Component
           collapsed: false
         }
         setChapters([...chapters, newChapter])
@@ -56,9 +57,11 @@ const AddCourse = () => {
     } else if (action === 'remove') {
       setChapters(chapters.map(chapter => {
         if (chapter.chapterId === chapterId) {
+          const updatedLectures = chapter.chapterLectures ? chapter.chapterLectures.filter((_, index) => index !== lectureIndex) : [];
           return {
             ...chapter,
-            chapterContent: chapter.chapterContent.filter((_, index) => index !== lectureIndex)
+            chapterContent: updatedLectures, // Sync both keys
+            chapterLectures: updatedLectures
           }
         }
         return chapter
@@ -67,16 +70,34 @@ const AddCourse = () => {
   }
 
   // Add Lecture From Popup
-  const addLecture = () => {
+  const addLecture = (e) => {
+    if (e) e.preventDefault(); 
+    
+    if (!lectureDetails.lectureTitle || !lectureDetails.lectureDuration || !lectureDetails.lectureUrl) {
+      return toast.error('Please fill all lecture details')
+    }
+
+    // Ensure values are structured correctly
+    const formattedLecture = {
+      ...lectureDetails,
+      lectureDuration: Number(lectureDetails.lectureDuration) // Map as numeric value if needed
+    }
+
     setChapters(chapters.map(chapter => {
       if (chapter.chapterId === currentChapterId) {
+        const updatedLectures = chapter.chapterLectures 
+          ? [...chapter.chapterLectures, formattedLecture] 
+          : [...(chapter.chapterContent || []), formattedLecture];
+
         return {
           ...chapter,
-          chapterContent: [...chapter.chapterContent, lectureDetails]
+          chapterContent: updatedLectures, // Mapping both for structural safety
+          chapterLectures: updatedLectures
         }
       }
       return chapter
     }))
+    
     setShowPopup(false)
     setLectureDetails({
       lectureTitle: '',
@@ -88,62 +109,78 @@ const AddCourse = () => {
 
   // Handle Form Submission with API & Cloudinary Logic
   const handleSubmit = async (e) => {
-  try {
-    e.preventDefault()
+    try {
+      e.preventDefault()
 
-    const token = await getToken()
+      if (!image) {
+        return toast.error('Please select a course thumbnail')
+      }
 
-    if (!image) {
-      return toast.error('Please select a course thumbnail')
-    }
+      const token = await getToken()
 
-    const courseDescription = quillRef.current
-      ? quillRef.current.root.innerHTML
-      : ''
+      const courseDescription = quillRef.current
+        ? quillRef.current.root.innerHTML
+        : ''
 
-    const courseData = {
-      courseTitle,
-      courseDescription,
-      coursePrice,
-      discount,
-      courseContent: chapters
-    }
+      // 🛠️ FIX: ব্যাকএন্ডের Mongoose স্কিমা অনুযায়ী ডাটা প্রসেস এবং ফর্ম্যাট করা হচ্ছে
+      const formattedCourseContent = chapters.map((chapter, chapterIndex) => ({
+        chapterId: chapter.chapterId,
+        chapterTitle: chapter.chapterTitle,
+        chapterOrder: chapterIndex + 1, // 👈 Required chapterOrder যুক্ত করা হলো
+        chapterContent: (chapter.chapterLectures || []).map((lecture, lectureIndex) => ({
+          lectureId: lecture.lectureId || `${chapter.chapterId}-${lectureIndex}-${Date.now()}`, // 👈 Required lectureId যুক্ত করা হলো
+          lectureTitle: lecture.lectureTitle,
+          lectureDuration: Number(lecture.lectureDuration),
+          lectureUrl: lecture.lectureUrl,
+          isPreviewFree: lecture.isPreviewFree,
+          lectureOrder: lectureIndex + 1 // 👈 Required lectureOrder যুক্ত করা হলো
+        }))
+      }))
 
-    const formData = new FormData()
+      // Structured strictly as expected by the GreatStack backend controller
+      const courseData = {
+        courseTitle,
+        courseDescription,
+        coursePrice: Number(coursePrice),
+        discount: Number(discount),
+        courseContent: formattedCourseContent // 👈 ফিক্সড ডাটা এখানে পাস করা হয়েছে
+      }
 
-    formData.append('courseData', JSON.stringify(courseData))
-    formData.append('image', image)
+      const formData = new FormData()
+      formData.append('courseData', JSON.stringify(courseData))
+      formData.append('image', image)
 
-    const { data } = await axios.post(
-      'http://localhost:5000/api/educator/add-course',
-      formData,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`
+      const { data } = await axios.post(
+        'http://localhost:5000/api/educator/add-course',
+        formData,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
         }
+      )
+
+      if (data.success) {
+        toast.success(data.message)
+
+        // Reset States after success
+        setCourseTitle('')
+        setCoursePrice(0)
+        setDiscount(0)
+        setImage(false)
+        setChapters([])
+
+        if (quillRef.current) {
+          quillRef.current.root.innerHTML = ''
+        }
+      } else {
+        toast.error(data.message)
       }
-    )
-
-    if (data.success) {
-      toast.success(data.message)
-
-      setCourseTitle('')
-      setCoursePrice(0)
-      setDiscount(0)
-      setImage(false)
-      setChapters([])
-
-      if (quillRef.current) {
-        quillRef.current.root.innerHTML = ''
-      }
-    } else {
-      toast.error(data.message)
+    } catch (error) {
+      console.log(error)
+      toast.error(error.response?.data?.message || error.message)
     }
-  } catch (error) {
-    console.log(error)
-    toast.error(error.response?.data?.message || error.message)
   }
-}
 
   // Initialize Quill Editor
   useEffect(() => {
@@ -245,7 +282,9 @@ const AddCourse = () => {
                     <span className='font-semibold text-gray-800'>{chapterIndex + 1} {chapter.chapterTitle}</span>
                   </div>
                   <div className='flex items-center gap-3'>
-                    <span className='text-gray-500 text-xs'>{chapter.chapterContent.length} lectures</span>
+                    <span className='text-gray-500 text-xs'>
+                      {(chapter.chapterLectures || chapter.chapterContent || []).length} lectures
+                    </span>
                     <img 
                       src={assets.cross_icon} 
                       alt="Remove Chapter" 
@@ -261,7 +300,7 @@ const AddCourse = () => {
                 {/* Chapter Lectures Content */}
                 {!chapter.collapsed && (
                   <div className='p-4 space-y-3'>
-                    {chapter.chapterContent.map((lecture, lectureIndex) => (
+                    {(chapter.chapterLectures || chapter.chapterContent || []).map((lecture, lectureIndex) => (
                       <div key={lectureIndex} className='flex items-center justify-between text-sm text-gray-600 bg-white border border-gray-500/20 px-3 py-2 rounded shadow-sm'>
                         <div className='flex items-center gap-2'>
                           <img src={assets.play_icon} alt="" className='w-4' />
@@ -317,7 +356,7 @@ const AddCourse = () => {
                 <p className='text-sm font-medium mb-1'>Lecture Title</p>
                 <input 
                   type="text" 
-                  className='w-full outline-none border border-gray-500 p-2 rounded'
+                  className='w-full outline-none border border-gray-300 p-2 rounded'
                   value={lectureDetails.lectureTitle}
                   onChange={e => setLectureDetails({ ...lectureDetails, lectureTitle: e.target.value })}
                   required
@@ -328,7 +367,7 @@ const AddCourse = () => {
                 <p className='text-sm font-medium mb-1'>Duration (minutes)</p>
                 <input 
                   type="number" 
-                  className='w-full outline-none border border-gray-500 p-2 rounded'
+                  className='w-full outline-none border border-gray-300 p-2 rounded'
                   value={lectureDetails.lectureDuration}
                   onChange={e => setLectureDetails({ ...lectureDetails, lectureDuration: e.target.value })}
                   required
@@ -339,7 +378,7 @@ const AddCourse = () => {
                 <p className='text-sm font-medium mb-1'>Lecture URL</p>
                 <input 
                   type="text" 
-                  className='w-full outline-none border border-gray-500 p-2 rounded'
+                  className='w-full outline-none border border-gray-300 p-2 rounded'
                   value={lectureDetails.lectureUrl}
                   onChange={e => setLectureDetails({ ...lectureDetails, lectureUrl: e.target.value })}
                   required
@@ -371,4 +410,4 @@ const AddCourse = () => {
   )
 }
 
-export default AddCourse
+export default AddCourse;

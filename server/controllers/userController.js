@@ -56,7 +56,7 @@ export const getUserData = async (req, res) => {
     }
 }
 
-// 2. USER ENROLLED COURSES
+// 2. USER ENROLLED COURSES (ভিডিওর মতো প্রোগ্রেস ডাটা সহ ফিক্সড)
 export const userEnrolledCourses = async (req, res) => {
     try {
         let userId = req.auth?.userId || req.auth?.id;
@@ -73,20 +73,44 @@ export const userEnrolledCourses = async (req, res) => {
             return res.json({ success: false, message: "Unauthorized" });
         }
 
+        // ইউজারের এনরোল করা কোর্সগুলো নিয়ে আসা
         const userData = await User.findById(userId).populate('enrolledCourses');
 
         if (!userData) {
             return res.json({ success: false, message: "User Not Found" });
         }
 
-        return res.json({ success: true, enrolledCourses: userData.enrolledCourses });
+        // প্রতিটি কোর্সের মোট লেকচার সংখ্যা এবং কমপ্লিটেড লেকচার ডাটাবেজ থেকে ক্যালকুলেট করা
+        const enrolledCoursesWithProgress = await Promise.all(
+            userData.enrolledCourses.map(async (course) => {
+                // টোটাল লেকচার কাউন্ট
+                let totalLectures = 0;
+                if (course.courseContent) {
+                    course.courseContent.forEach((chapter) => {
+                        if (chapter.chapterContent) {
+                            totalLectures += chapter.chapterContent.length;
+                        }
+                    });
+                }
+
+                // ডাটাবেজ থেকে এই কোর্সের প্রোগ্রেস রেকর্ড খোঁজা
+                const progressData = await CourseProgress.findOne({ userId, courseId: course._id });
+                
+                return {
+                    ...course._doc,
+                    totalLectures,
+                    lectureCompleted: progressData ? progressData.lectureCompleted.length : 0
+                };
+            })
+        );
+
+        return res.json({ success: true, enrolledCourses: enrolledCoursesWithProgress });
     } catch (error) {
         return res.json({ success: false, message: error.message });
     }
 }
 
 // 3. PURCHASE COURSE
-
 export const purchaseCourse = async (req, res) => {
     try {
         const { courseId } = req.body;
@@ -157,7 +181,7 @@ export const purchaseCourse = async (req, res) => {
     }
 }
 
-// ১. Update User Course Progress
+// 4. Update User Course Progress
 export const updateUserCourseProgress = async (req, res) => {
     try {
         const userId = req.auth.userId;
@@ -191,13 +215,13 @@ export const updateUserCourseProgress = async (req, res) => {
     }
 };
 
-// ২. Get User Course Progress
+// 5. Get User Course Progress
 export const getUserCourseProgress = async (req, res) => {
     try {
         const userId = req.auth.userId;
         const { courseId } = req.body;
 
-        // ইউজারের নির্দিষ্ট কোর্সের প্রগ্রেস ডাটাবেজ থেকে নিয়ে আসা হচ্ছে
+        // ইউজারের নির্দিষ্ট কোর্সের প্রগ্রেস ডাটাবেজ থেকে নিয়ে আসা হচ্ছে
         const progressData = await CourseProgress.findOne({ userId, courseId });
 
         res.json({ success: true, progressData });
@@ -207,11 +231,7 @@ export const getUserCourseProgress = async (req, res) => {
     }
 };
 
-
-
-
-
-// Add User Ratings to Course
+// 6. Add User Ratings to Course
 export const addUserRating = async (req, res) => {
     const userId = req.auth.userId;
     const { courseId, rating } = req.body;
@@ -233,18 +253,18 @@ export const addUserRating = async (req, res) => {
             return res.json({ success: false, message: 'User has not purchased this course.' });
         }
 
-        // ইউজার আগে কোনো রেটিং দিয়েছে কিনা তার ইনডেক্স খোঁজা হচ্ছে
+        // ইউজার আগে কোনো রেটিং দিয়েছে কিনা তার ইনডেক্স খোঁজা হচ্ছে
         const existingRatingIndex = course.courseRatings.findIndex(r => r.userId === userId);
 
         if (existingRatingIndex > -1) {
-            // আগের দেওয়া রেটিংটি আপডেট করা হচ্ছে
+            // আগের দেওয়া রেটিংটি আপডেট করা হচ্ছে
             course.courseRatings[existingRatingIndex].rating = rating;
         } else {
             // একদম নতুন রেটিং অবজেক্ট পুশ করা হচ্ছে
             course.courseRatings.push({ userId, rating });
         }
 
-        // ডাটাবেজে কোর্স অবজেক্টটি সেভ করা হচ্ছে
+        // ডাটাবেজে курс অবজেক্টটি সেভ করা হচ্ছে
         await course.save();
 
         return res.json({ success: true, message: 'Rating Added Successfully' });
